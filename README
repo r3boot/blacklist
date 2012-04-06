@@ -1,1 +1,35 @@
 A python based s/RTBH implementation
+====================================
+
+This is a working s/RTBH implementation, based on python, django,
+syslog, regular expressions and bird, to distribute and nullroute.
+
+          _________
+         /         \
+         | network |
+         \_________/
+              |
+              |
+          +--------+     +-----------+
+          | syslog |-----| bl-syslog |
+          +--------+     +-----------+
+                              |
+			                  |
+			             +-----------+  +------------------+
+                         | bl-broker |--| django-blacklist |
+			             +-----------+  +------------------+
+			                  |
+					          |
+			              +--------+
+			              | bl-bgp |
+				          +--------+
+				              |
+				              |
+			               +------+
+			               | bird |
+				           +------+
+				              |
+                          ____|____
+                         /         \
+                         | routers |
+                         \_________/
