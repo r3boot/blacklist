@@ -1,0 +1,4 @@
+
+Notes, for now
+
+apt-get -t testing install libzmq1 bird bird6
