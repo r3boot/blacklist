@@ -15,9 +15,9 @@ syslog, regular expressions and bird, to distribute and nullroute.
           +--------+     +-----------+
                               |
                               |
-                         +-----------+  +------------------+
-                         | bl-broker |--| django-blacklist |
-                         +-----------+  +------------------+
+         +-----------+   +-----------+  +------------------+
+         | bl-client |---| bl-broker |--| django-blacklist |
+         +-----------+   +-----------+  +------------------+
                               |
                               |
                           +--------+
