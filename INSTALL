@@ -1,4 +1,14 @@
 
 Notes, for now
 
-apt-get -t testing install libzmq1 bird bird6
+(development host)
+apt-get -t testing install libzmq1 libzmq-dev bird bird6 rsync build-essential nginx
+apt-get install python-setuptools python-dev python-django python-psycopg2 postgresql postgresql-client python-django-south python-django-pagination python-memcache python-flup
+
+easy_install pyzmq
+easy_install django-cache-machine
+easy_install dnspython
+
+(workstation)
+apt-get -t testing install fabric
+ssh config + key + agent

@@ -4,30 +4,47 @@ from south.db import db
 from south.v2 import DataMigration
 from django.db import models
 
-from django.db	import transaction
-from decimal	import Decimal
+from django.db    import transaction
+from decimal    import Decimal
+
+registry_data = {
+    "ARIN": "ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest",
+    "RIPE": "ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest",
+    "AfriNIC": "ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest",
+    "APNIC": "ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest",
+    "LACNIC": "ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest",
+}
+
 
 @transaction.commit_manually
 class Migration(DataMigration):
 
     def forwards(self, orm):
-		all_rirs = {}
-		for rir in ["ARIN", "RIPE", "AfriNIC", "APNIC", "LACNIC"]:
-			all_rirs[rir] = orm.RIR.objects.get(name=rir)
+        all_rirs = {}
+        for rir in ["ARIN", "RIPE", "AfriNIC", "APNIC", "LACNIC"]:
+            try:
+                all_rirs[rir] = orm.RIR.objects.get(name=rir)
+            except:
+                obj = orm.RIR.objects.create(
+                    name=rir,
+                    whois=registry_data[rir]
+                )
+                obj.save()
+                all_rirs[rir] = orm.RIR.objects.get(name=rir)
 
-		subnet_to_rir = {}
-		for line in open("blacklist/migrations/data/subnet-to-rir.txt", "r").readlines():
-			line = line.strip()
-			t = line.split("|")
-			subnet_to_rir[Decimal(t[0])] = all_rirs[t[1]]
+        subnet_to_rir = {}
+        for line in open("blacklist/migrations/data/subnet-to-rir.txt", "r").readlines():
+            line = line.strip()
+            t = line.split("|")
+            subnet_to_rir[Decimal(t[0])] = all_rirs[t[1]]
 
-		for subnet in orm.Subnet.objects.all().iterator():
-			subnet.rir = subnet_to_rir[subnet.subnet]
-			subnet.save()
-		transaction.commit()
+        for subnet in orm.Subnet.objects.all().iterator():
+            subnet.rir = subnet_to_rir[subnet.subnet]
+            subnet.save()
+        transaction.commit()
 
     def backwards(self, orm):
-		raise RuntimeError("Cannot reverse this migration.")
+        raise RuntimeError("Cannot reverse this migration.")
 
 
     models = {

@@ -12,10 +12,10 @@ MANAGERS = ADMINS
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql_psycopg2", # Add "postgresql_psycopg2", "postgresql", "mysql", "sqlite3" or "oracle".
-        "NAME": "blacklist",                      # Or path to database file if using sqlite3.
-        "USER": "blacklist",                      # Not used with sqlite3.
-        "PASSWORD": "blacklist",                  # Not used with sqlite3.
-        "HOST": "localhost",                      # Set to empty string for localhost. Not used with sqlite3.
+        "NAME": "%DB_NAME%",                      # Or path to database file if using sqlite3.
+        "USER": "%DB_USER%",                      # Not used with sqlite3.
+        "PASSWORD": "%DB_PASS%",                  # Not used with sqlite3.
+        "HOST": "%DB_HOST%",                      # Set to empty string for localhost. Not used with sqlite3.
         "PORT": "",                      # Set to empty string for default. Not used with sqlite3.
     }
 }
@@ -45,7 +45,7 @@ USE_L10N = True
 
 # Absolute path to the directory that holds media.
 # Example: "/home/media/media.lawrence.com/"
-MEDIA_ROOT = "/www/blacklist/app/media"
+MEDIA_ROOT = "%DJANGO_ROOT%/media"
 
 # URL that handles the media served from MEDIA_ROOT. Make sure to use a
 # trailing slash if there is a path component (optional in other cases).
@@ -59,11 +59,11 @@ MEDIA_URL = "/media/"
 ADMIN_MEDIA_PREFIX = "/media/"
 
 # Make this unique, and don"t share it with anybody.
-SECRET_KEY = "blacklist"
+SECRET_KEY = "%DJANGO_SECRET%"
 
 # Cache backend
 # CACHE_BACKEND="memcached://127.0.0.1:11211/?timeout=3600"
-CACHE_BACKEND="caching.backends.memcached://127.0.0.1:11211"
+CACHE_BACKEND="caching.backends.memcached://%CACHE_HOST%:%CACHE_PORT%"
 CACHE_COUNT_TIMEOUT=60
 
 # List of callables that know how to import templates from various sources.
@@ -92,7 +92,7 @@ FORCE_SCRIPT_NAME = ""
 LOGIN_URL = "/login/"
 
 TEMPLATE_DIRS = (
-	"/www/blacklist/app/templates",
+	"%DJANGO_ROOT%/templates",
 )
 
 INSTALLED_APPS = (

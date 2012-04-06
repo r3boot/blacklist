@@ -6,9 +6,8 @@ import re
 import sys
 import time
 import urllib2
-import cProfile
 
-sys.path.append("/www/blacklist/app")
+sys.path.append('%DJANGO_ROOT%')
 os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
 
 from django.db					import transaction, reset_queries
@@ -285,12 +284,13 @@ registries = [
 	["Unknown", "localhost"],
 ]
 
-error_dir = "/www/blacklist/app/scripts/registry-mgmt/errors"
-cache_dir = "/www/blacklist/app/scripts/registry-mgmt/cache"
+error_dir = "%DJANGO_ROOT%/scripts/registry-mgmt/errors"
+cache_dir = "%DJANGO_ROOT%/scripts/registry-mgmt/cache"
 asn_name_cache = {}
 asn_name_cache_file = "%s/asn_name.txt" % (cache_dir)
 subnet_asnum_cache = {}
 subnet_asnum_cache_file = "%s/subnet_asnum.txt" % (cache_dir)
+country_rir_cache = {}
 
 ipcalc = IPCalc()
 netdata = NetData()
@@ -556,11 +556,10 @@ def import_subnet_data(all_subnets, registry):
 if __name__ == "__main__":
 	prepare_cache()
 	sys.setcheckinterval(1000000)
-	#import_countries()
-	#import_registries()
-	#for rir in ["ARIN", "RIPE", "AfriNIC", "APNIC", "LACNIC"]:
-	for rir in ["LACNIC"]:
+	import_registries()
+	import_countries()
+	for rir in ["ARIN", "RIPE", "AfriNIC", "APNIC", "LACNIC"]:
 		print "Importing %s data" % (rir)
-		#import_asnum_data(prepare_asnum_data(rir))
+		import_asnum_data(prepare_asnum_data(rir))
 		import_subnet_data(prepare_subnet_data(rir), rir)
 	save_cache()
