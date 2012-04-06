@@ -1,0 +1,56 @@
+{% load menu %}{% load page %}{% load pagination_tags %}
+<!DOCTYPE html
+PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"https://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> 
+<html xmlns="https://www.w3.org/1999/xhtml">
+<head>
+
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>AS65342 Blacklist</title>
+	
+<link rel="stylesheet" href="https://blacklist.as65342.net/media/screen.css" />
+<link rel="stylesheet" href="https://blacklist.as65342.net/media/jquery_treeview.css" />
+<script type="text/javascript" src="https://blacklist.as65342.net/media/javascript.js"></script>
+
+</head>
+<body>
+
+<div id="page">
+
+<div id="banner">
+<h1>AS65342 -- Blacklist</h1>
+</div>
+
+<ul id="bottom-menu">
+{% if request.user.is_authenticated %}
+<li><a class="{% active request "^/listing" %}"
+	href="{% url blacklist.views.listing.listings %}">blacklist</a></li>
+<li><a class="{% active request "^/whitelist" %}"
+	href="{% url blacklist.views.whitelisting.whitelistings %}">whitelist</a></li>
+<li><a class="{% active request "^/registry" %}"
+	href="{% url blacklist.views.registry.providers %}">registry</a></li>
+<li><a class="{% active request "^/rule" %}"
+	href="{% url blacklist.views.rule.rules %}">rules</a></li>
+<li><a class="{% active request "^/peering" %}"
+	href="{% url blacklist.views.peering.peerings %}">peerings</a></li>
+<li><a class="{% active request "^/reports" %}"
+	href="">reports</a></li>
+<li><a class="{% active request "^/admin" %}"
+	href="">admin</a></li>
+<li><a class="{% active request "^/logout/" %}"
+	href="{% url users.views.logout_form %}">logout</a></li>
+{% else %}
+<li><a class="{% active request "^/login/" %}"
+	href="{% url users.views.login_form %}">login</a></li>
+{% endif %}
+</ul>
+
+<div id="content">
+
+<div id="main">
+{% block content %}{% endblock %}
+</div> <!-- main -->
+</div> <!-- content -->
+</div> <!-- page -->
+</body>
+</html>

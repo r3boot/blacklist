@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="errmsg">{{errmsg}}</div>
+<p/><form action="" method="post">
+{% csrf_token %}
+<h2>Adding new entry:</h2>
+<table>
+{{form}}
+</table>
+<p/><input type="submit" value="add" />
+<input type="button" value="back" onclick="history.back()" />
+</form>
+{% endblock %}

@@ -1,0 +1,26 @@
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.6/threading.py", line 532, in __bootstrap_inner
+    self.run()
+  File "./bin/bl-broker", line 156, in run
+    response = self.request_dispatcher(message)
+  File "./bin/bl-broker", line 121, in request_dispatcher
+    (response["result"], response["data"]) = self.api.add(data)
+  File "/www/blacklist/app/blacklist/common/api.py", line 28, in add
+    reporter=data['username'],
+  File "/www/blacklist/app/blacklist/backend/listing.py", line 36, in add
+    (result, ip) = self.ip.add(ip=kwargs['ip'])
+  File "/www/blacklist/app/blacklist/backend/ip.py", line 59, in add
+    (result, net) = self.subnet.add(subnet=net, asn=asn, asn_name=asn_name, whois_data=whois_data, cc=cc)
+  File "/www/blacklist/app/blacklist/backend/subnet.py", line 72, in add
+    net_last = net_first + self.ipcalc.bittoip[int(mask)]
+KeyError: 48
+
+[API]: Received listings update
+202.103.52.147: Added to blacklist
+[Dispatcher]: 202.103.52.147 has already been parsed, skipping
+[Dispatcher]: 10.42.7.27 is whitelisted
+[Dispatcher]: 10.42.7.27 has already been parsed, skipping
+[Dispatcher]: 10.42.7.27 has already been parsed, skipping
+[Dispatcher]: 10.42.7.27 has already been parsed, skipping
+FATAL ERROR: OUT OF MEMORY (zmq_init.cpp:47)
+

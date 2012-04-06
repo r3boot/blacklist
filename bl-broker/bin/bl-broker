@@ -1,0 +1,176 @@
+#!/usr/local/bin/python
+
+cfgfile = "/etc/bl-broker.conf"
+
+import ConfigParser
+import datetime
+import os
+import random
+import sys
+import time
+import threading
+import zmq
+
+sys.path.append("/www/blacklist/app")
+os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
+
+from django.db						import reset_queries
+from django.contrib.auth			import authenticate
+
+from blacklist.common.api			import API
+from blacklist.common.config		import Config
+from blacklist.common.encryption	import Encryption
+from blacklist.middleware.listing	import Listing
+
+class Expiry(threading.Thread):
+	def __init__(self, server):
+		threading.Thread.__init__(self)
+		self.setDaemon(True)
+		self.server = server
+		self.listing = Listing()
+
+	def msg(self, msg):
+		print "[Expiry]: %s" % (msg)
+
+	def run(self):
+		while not self.server.stop:
+			expired = 0
+			now = time.mktime(datetime.datetime.now().timetuple())
+			(result, listings) = self.listing.all()
+			if not result:
+				self.msg("Failed to retrieve listings")
+				sys.exit(1)
+			for item in listings:
+				item_entry = time.mktime(item.timestamp.timetuple())
+				if (item_entry + item.duration.duration) < now:
+					(result, listing) = self.listing.delete(ip=item.ip)
+					if result:
+						expired += 1
+			if expired != 0:
+				self.msg("Expired %s listings" % (expired))
+
+			reset_queries()
+
+			time.sleep(60)
+
+class Broker(threading.Thread):
+	stop = False
+
+	def __init__(self, cfg):
+		self.cfg = cfg
+		threading.Thread.__init__(self)
+		self.api = API()
+		self.config = Config()
+		self.expiry = Expiry(self)
+		self.encryption = Encryption(self.config["blacklist.api.psk"])
+
+		self.context = zmq.Context()
+		self.request = self.context.socket(zmq.REP)
+		self.request.bind(cfg["requests"])
+
+		self.publisher = self.context.socket(zmq.PUB)
+		self.publisher.bind(cfg["publisher"])
+
+		self.poller = zmq.Poller()
+		self.poller.register(self.request, zmq.POLLIN)
+
+		self.expiry.start()
+
+	def msg(self, msg):
+		print "[Broker]: %s" % (msg)
+
+	def can_authenticate(self, data):
+		return authenticate(
+			username=data["username"],
+			password=data["password"],
+		)
+
+	def publish_dispatcher(self, action):
+		response = {
+			"result":	False,
+			"data":		None,
+			"random":	random.random()*time.mktime(datetime.datetime.timetuple(datetime.datetime.now()))
+		}
+		if action == "update_listings":
+			(response["result"], response["data"]) = self.api.get_listings()
+		elif action == "update_whitelistings":
+			(response["result"], response["data"]) = self.api.get_whitelistings()
+		elif action == "update_rules":
+			(response["result"], response["data"]) = self.api.get_rules()
+		data = self.encryption.encrypt(response)
+		self.msg("(publisher) Sending %s response" % (action))
+		self.publisher.send("%s %s" % (action, data))
+
+	def request_dispatcher(self, message):
+		response = {
+			"result":	False,
+			"data":		None,
+			"random":	random.random()*time.mktime(datetime.datetime.timetuple(datetime.datetime.now()))
+		}
+		try:
+			data = self.encryption.decrypt(message)
+		except:
+			response["data"] = "Failed to decrypt data"
+
+		if not self.can_authenticate(data):
+			response["data"] = "Failed to authenticate"
+
+		if data.has_key("action"):
+			self.msg("(request) Received %s request" % (data["action"]))
+			if data["action"] == "add":
+				(response["result"], response["data"]) = self.api.add(data)
+				self.publish_dispatcher("update_listings")
+			elif data["action"] == "get_listings":
+				(response["result"], response["data"]) = self.api.get_listings()
+			elif data["action"] == "get_whitelistings":
+				(response["result"], response["data"]) = self.api.get_whitelistings()
+			elif data["action"] == "get_rules":
+				(response["result"], response["data"]) = self.api.get_rules()
+			elif data["action"] == "get_peerings":
+				(response["result"], response["data"]) = self.api.get_peerings()
+			elif data["action"] == "update_listings":
+				self.publish_dispatcher("update_listings")
+				response["result"] = True
+				response["data"] = "Successfully submitted listing update request"
+			elif data["action"] == "update_whitelistings":
+				self.publish_dispatcher("update_whitelistings")
+				response["result"] = True
+				response["data"] = "Successfully submitted whitelist update request"
+			elif data["action"] == "update_rules":
+				self.publish_dispatcher("update_rules")
+				response["result"] = True
+				response["data"] = "Successfully submitted rule update request"
+			else:
+				response["data"] = "Invalid action specified"
+		else:
+			response["data"] = "No action specified"
+
+		return self.encryption.encrypt(response)
+
+	def run(self):
+		while not self.stop:
+			socks = dict(self.poller.poll())
+
+			if self.request in socks and socks[self.request] == zmq.POLLIN:
+				message = self.request.recv()
+				response = self.request_dispatcher(message)
+				self.request.send(response)
+
+def get_config(cfgfile):
+	if not os.path.exists(cfgfile):
+		print "%s does not exist, exiting ..." % (cfgfile)
+		sys.exit(1)
+	cfg = {}
+	cfgparser = ConfigParser.ConfigParser()
+	cfgparser.read(cfgfile)
+	for option in cfgparser.options("config"):
+		cfg[option] = cfgparser.get("config", option)
+	return cfg
+
+if __name__ == "__main__":
+	config = get_config(cfgfile)
+	broker = Broker(config)
+	try:
+		broker.start()
+	except KeyboardInterrupt:
+		broker.stop = True

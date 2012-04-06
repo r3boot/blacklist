@@ -1,0 +1,52 @@
+## AUTO GENERATED FILE -- DO NOT EDIT
+log syslog all;
+# log stderr all;
+# debug protocols all;
+
+router id {{config.router_id}};
+
+function reject_whitelisted() {
+{% if whitelistings != [] %}
+	if net ~ [
+{% for net in whitelistings %}{% if loop.last %}		{{net}}{% else %}		{{net}},{% endif %}
+{% endfor %}	] then reject;
+{% endif %}
+	accept;
+}
+
+function reject_default_route() {
+	if net ~ [
+		::/0,
+		::/1,
+		8000::/1
+	] then reject;
+	accept;
+}
+
+filter f_rtbh_feed {
+	reject_whitelisted();
+	reject_default_route();
+	accept;
+}
+
+protocol static blacklist {
+{% for net in listings %}	route {{net}} reject;
+{% endfor %}}
+
+protocol kernel {
+	persist;
+	scan time 20;
+}
+
+protocol device {
+	scan time 10;
+}
+{% for peer in peerings %}
+protocol bgp {{peer.hostname}} {
+	local {{config.local_ip6}} as {{config.local_as}};
+	neighbor {{peer.ip}} as {{peer.asnum}};
+	multihop;
+	export filter f_rtbh_feed;
+	import none;
+}
+{% endfor %}

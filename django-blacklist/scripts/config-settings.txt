@@ -1,0 +1,1 @@
+blacklist.country.pages_per_view	25

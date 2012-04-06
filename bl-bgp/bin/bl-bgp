@@ -1,0 +1,248 @@
+#!/usr/local/bin/python
+
+cfgfile = "/etc/bl-bgp.conf"
+
+from Crypto.Cipher		import AES
+import ConfigParser
+import base64
+import cPickle
+import commands
+import datetime
+import jinja2
+import os
+import random
+import re
+import sys
+import time
+import threading
+import urllib2
+import zmq
+
+class BGP:
+	def __init__(self, config, server):
+		self.config = config
+		self.server = server
+
+	def reload_config(self):
+		commands.getoutput("sudo %s configure soft" % (self.config["birdc"]))
+
+	def reload_config6(self):
+		commands.getoutput("sudo %s configure soft" % (self.config["birdc6"]))
+
+	def write_config(self):
+		template = jinja2.Template("".join(open(self.config["template"], "r").readlines()))
+		cfgfile = template.render(
+			config=self.config,
+			listings=self.server.listings,
+			whitelistings=self.server.whitelistings,
+			peerings=self.server.peerings,
+		)
+		open(self.config["cfgfile"], "w").write(cfgfile)
+
+	def write_config6(self):
+		template = jinja2.Template("".join(open(self.config["template6"], "r").readlines()))
+		cfgfile = template.render(
+			config=self.config,
+			listings=self.server.listings6,
+			whitelistings=self.server.whitelistings6,
+			peerings=self.server.peerings6,
+		)
+		open(self.config["cfgfile6"], "w").write(cfgfile)
+
+	def update_config(self):
+		self.write_config()
+		self.reload_config()
+		self.write_config6()
+		self.reload_config6()
+
+class Server(threading.Thread):
+	_blocksize = 32
+	_padding = "{"
+	stop = False
+
+	def __init__(self, config):
+		threading.Thread.__init__(self)
+		self.config = config
+		self.cipher = AES.new(self._pad(config["psk"]))
+		self.bgp = BGP(config, self)
+
+		self.context = zmq.Context()
+		self.broker = self.context.socket(zmq.REQ)
+		self.broker.connect(config["broker"])
+
+		self.updates = self.context.socket(zmq.SUB)
+		self.updates.connect(config["updates"])
+		self.updates.setsockopt(zmq.SUBSCRIBE, "update_listings")
+		self.updates.setsockopt(zmq.SUBSCRIBE, "update_whitelistings")
+
+		self.listings = []
+		self.listings6 = []
+		self.whitelistings = []
+		self.whitelistings6 = []
+		self.peerings = []
+		self.peerings6 = []
+
+		self.initialize()
+		self.start()
+
+	def msg(self, msg):
+		print "[Server]: %s" % (msg)
+
+	def _parse_listings(self, listings):
+		result = []
+		result6 = []
+		for item in listings:
+			if item[3] == 4:
+				result.append("%s/%s" % (self.itodq(int(item[0]), item[3]), item[2]))
+			elif item[3] == 6:
+				result6.append("%s/%s" % (self.itodq(int(item[0]), item[3]), item[2]))
+		return (result, result6)
+
+	def _parse_peerings(self, peerings):
+		result = []
+		result6 = []
+		for item in peerings:
+			if item["af"] == 4:
+				result.append({
+					"hostname":	item["hostname"].replace(".", "_"),
+					"ip":		self.itodq(int(item["ip"]), item["af"]),
+					"asnum":	item["asnum"],
+					"key":		item["key"],
+				})
+			elif item["af"] == 6:
+				result6.append({
+					"hostname":	item["hostname"].replace(".", "_"),
+					"ip":		self.itodq(int(item["ip"]), item["af"]),
+					"asnum":	item["asnum"],
+					"key":		item["key"],
+				})
+		return (result, result6)
+
+	def initialize(self):
+		(result, listings) = self.get_listings()
+		if result:
+			self.msg("Retrieved %s listings from broker" % (len(listings)))
+			(self.listings, self.listings6) = self._parse_listings(listings)
+		else:
+			self.msg("Failed to retrieve listings from broker")
+			sys.exit(1)
+
+		(result, whitelistings) = self.get_whitelistings()
+		if result:
+			self.msg("Retrieved %s whitelistings from broker" % (len(whitelistings)))
+			(self.whitelistings, self.whitelistings6) = self._parse_listings(whitelistings)
+		else:
+			self.msg("Failed to retrieve whitelistings from broker")
+			sys.exit(1)
+
+		(result, peerings) = self.get_peerings()
+		if result:
+			self.msg("Retrieved %s peerings from broker" % (len(peerings)))
+			(self.peerings, self.peerings6) = self._parse_peerings(peerings)
+		else:
+			self.msg("Failed to retrieve peerings from broker")
+			sys.exit(1)
+
+		self.bgp.update_config()
+
+	def compress6(self, hextets):
+		best_doublecolon_start = -1
+		best_doublecolon_len = 0
+		doublecolon_start = -1
+		doublecolon_len = 0
+		for index in range(len(hextets)):
+			if hextets[index] == '0':
+				doublecolon_len += 1
+				if doublecolon_start == -1:
+					doublecolon_start = index
+				if doublecolon_len > best_doublecolon_len:
+					best_doublecolon_len = doublecolon_len
+					best_doublecolon_start = doublecolon_start
+			else:
+				doublecolon_len = 0
+				doublecolon_start = -1
+		if best_doublecolon_len > 1:
+			best_doublecolon_end = (best_doublecolon_start + best_doublecolon_len)
+			if best_doublecolon_end == len(hextets):
+				hextets += ['']
+			hextets[best_doublecolon_start:best_doublecolon_end] = ['']
+			if best_doublecolon_start == 0:
+				hextets = [''] + hextets
+		return hextets
+
+	def itodq(self, n, v):
+		if v == 4:
+			return '.'.join(map(str, [(n>>24) & 0xff, (n>>16) & 0xff, (n>>8) & 0xff, n & 0xff]))
+		elif v ==6:
+			n = '%032x' % n
+			hextets = []
+			for x in range(0, 32, 4):
+				hextets.append('%x' % int(n[x:x+4], 16))
+			return ':'.join(self.compress6(hextets))
+		raise ValueError, "Invalid address input"
+
+	def _pad(self, s):
+		return s + (self._blocksize - len(s) % self._blocksize) * self._padding
+
+	def _encrypt(self, data):
+		return base64.urlsafe_b64encode(self.cipher.encrypt(self._pad(cPickle.dumps(data))))
+
+	def _decrypt(self, data):
+		return cPickle.loads(self.cipher.decrypt(base64.urlsafe_b64decode(data.encode("utf-8")).rstrip(self._padding)))
+
+	def _submit(self, data):
+		data['username'] = self.config['username']
+		data['password'] = self.config['password']
+		data['random'] = random.random()*time.mktime(datetime.datetime.timetuple(datetime.datetime.now()))
+		enc = self._encrypt(data)
+
+		self.broker.send(enc)
+		response = self._decrypt(self.broker.recv())
+		return (response["result"], response["data"])
+
+	def get_listings(self):
+		cmd = {"action": "get_listings"}
+		return self._submit(cmd)
+
+	def get_whitelistings(self):
+		cmd = {"action": "get_whitelistings"}
+		return self._submit(cmd)
+
+	def get_peerings(self):
+		cmd = {"action": "get_peerings"}
+		return self._submit(cmd)
+
+	def run(self):
+		self.msg("Entering mainloop")
+		while not self.stop:
+			message = self.updates.recv()
+			(filter, encdata) = message.split()
+			data = self._decrypt(encdata)
+			if filter == "update_listings":
+				self.msg("Received listings update")
+				(self.listings, self.listings6) = self._parse_listings(data["data"])
+				self.bgp.update_config()
+			elif filter == "update_whitelistings":
+				self.msg("Received whitelistings update")
+				(self.whitelistings, self.whitelistings6) = self._parse_listings(data["data"])
+				self.bgp.update_config()
+			elif filter == "update_peerings":
+				self.msg("Received peerings update")
+				(self.peerings, self.peerings6) = self._parse_peerings(data["data"])
+				self.bgp.update_config()
+
+
+def get_config(cfgfile):
+	if not os.path.exists(cfgfile):
+		print "%s does not exist, exiting ..." % (cfgfile)
+		sys.exit(1)
+	cfg = {}
+	cfgparser = ConfigParser.ConfigParser()
+	cfgparser.read(cfgfile)
+	for option in cfgparser.options("config"):
+		cfg[option] = cfgparser.get("config", option)
+	return cfg
+
+if __name__ == "__main__":
+	config = get_config(cfgfile)
+	server = Server(config)

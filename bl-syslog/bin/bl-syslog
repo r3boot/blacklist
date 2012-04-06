@@ -1,0 +1,24 @@
+#!/usr/local/bin/python
+
+cfgfile = "/etc/bl-syslog.conf"
+
+import ConfigParser
+import os.path
+import sys
+
+from bl_syslog	import Server
+
+def get_config(cfgfile):
+	if not os.path.exists(cfgfile):
+		print "%s does not exist, exiting ..." % (cfgfile)
+		sys.exit(1)
+	cfg = {}
+	cfgparser = ConfigParser.ConfigParser()
+	cfgparser.read(cfgfile)
+	for option in cfgparser.options("config"):
+		cfg[option] = cfgparser.get("config", option)
+	return cfg
+
+if __name__ == "__main__":
+	config = get_config(cfgfile)
+	server = Server(config)

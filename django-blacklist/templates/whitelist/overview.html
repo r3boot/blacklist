@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load pagination_tags %}
+{% load ipcalc_tags %}
+{% load setvar_tags %}
+
+{% block content %}
+<form method="GET">
+{{search_form.q}}<input type="submit" value="search" /><br/>
+</form>
+<p/>{{errmsg}}
+<hr/>
+<table class="table">
+<thead class="header">
+{% for column in whitelist_table.columns %}
+<th>
+{% if column.sortable %}
+<a href="?sort={{column.name_toggled}}">{{column}}</a>
+{% if column.is_ordered_reverse %}^{% else %}v{% endif %}
+{% else %}
+{{column}}
+{% endif %}
+</th>
+{% endfor %}
+</thead>
+<tbody>
+{% with whitelist_table.rows as rows %}
+{% autopaginate rows %}
+{% for row in rows %}
+<tr class="{% cycle "even" "odd" %}">
+{% setvar first "1" %}
+{% for value in row %}
+{% if value != None %}
+{% if first == "1" %}
+<td>{% itodq value.ip row.ip.af %}/{{row.ip.mask}}</td>
+{% setvar first "0" %}
+{% else %}
+<td>{{value}}</td>
+{% endif %}
+{% else %}
+<td>&nbsp;</td>
+{% endif %}
+{% endfor %}
+</tr>
+{% endfor %}
+{% paginate %}
+{% endwith %}
+</tbody>
+</table>
+<p/><input type="button" value="add new" onclick="location.href='{% url blacklist.views.whitelisting.add %}'" />
+<input type="submit" value="delete" />
+
+{% endblock %}
+

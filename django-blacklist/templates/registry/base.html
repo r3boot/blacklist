@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load menu %}
+
+{% block content %}
+<ul id="top-menu">
+<li><a class="{% active request "^/registry/provider/" %}"
+	href="{% url blacklist.views.registry.providers %}">providers</a>
+<li><a class="{% active request "^/registry/subnet/" %}"
+	href="{% url blacklist.views.registry.subnets %}">subnets</a>
+<li><a class="{% active request "^/registry/country/" %}"
+	href="{% url blacklist.views.registry.countries %}">countries</a>
+<li><a class="{% active request "^/registry/rir/" %}"
+	href="{% url blacklist.views.registry.rirs %}">RIRs</a>
+</ul>
+{% block subpage %}{% endblock %}
+{% endblock %}

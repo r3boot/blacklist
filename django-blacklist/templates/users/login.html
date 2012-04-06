@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<center>
+<div id="header">Enter your login credentials</div>
+<span id="error"><p/>{{errmsg}}</span>
+<form action="{% url users.views.login_form %}" method="post">
+{% csrf_token %}
+{{form.prevpage}}
+<table id="login_table">
+<tr>
+<td>username</td>
+<td>{{form.username}}</td>
+</tr>
+<tr>
+<td>password</td>
+<td>{{form.password}}</td>
+</tr>
+</table>
+<input type="submit" value="login" />
+</form>
+</center>
+{% endblock %}

@@ -1,0 +1,16 @@
+#!/usr/bin/env python
+
+import zmq
+
+class Client:
+	def __init__(self):
+		self.context = zmq.Context()
+		self.sender = self.context.socket(zmq.PUSH)
+		self.sender.connect("tcp://localhost:5580")
+
+	def add(self, ip):
+		self.sender.send(ip)
+
+if __name__ == "__main__":
+	client = Client()
+	client.add("1.2.3.4")

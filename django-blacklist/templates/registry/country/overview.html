@@ -1,0 +1,54 @@
+{% extends "registry/base.html" %}
+{% load pagination_tags %}
+
+{% block subpage %}
+<form method="GET">
+{{search_form.q}}<input type="submit" value="search" /><br/>
+</form>
+<p/>{{errmsg}}
+<hr/>
+<form method="GET">
+<table class="table">
+<thead class="header">
+<th><input type="checkbox" id="all" onclick="toggleCheckBoxes(this)"/></th>
+{% for column in country_table.columns %}
+<th>
+{% if column.sortable %}
+<a href="?{% if search_form.data.q != None %}q={{search_form.data.q}}&{% endif %}sort={{column.name_toggled}}">{{column}}</a>
+{% if column.is_ordered_reverse %}^{% else %}v{% endif %}
+{% else %}
+{{column}}
+{% endif %}
+</th>
+{% endfor %}
+</thead>
+<tbody id="tbody">
+{% with country_table.rows as rows %}
+{% autopaginate rows %}
+{% for row in rows %}
+<tr class="{% cycle "even" "odd" %}">
+<td><input type="checkbox" name="id_{{row.id}}" /></td>
+{% for value in row %}
+{% if value != None %}
+<td>{{value|capfirst}}</td>
+{% else %}
+<td>&nbsp;</td>
+{% endif %}
+{% endfor %}
+</tr>
+{% endfor %}
+{% paginate %}
+{% endwith %}
+</tbody>
+</table>
+Bulk action:
+<select name="bulk_action">
+<option>blacklist</option>
+<option>whitelist</option>
+</select>
+<input type="hidden" name="q" value="{{search_form.data.q}}" />
+<input type="submit" value="submit" />
+</form>
+
+{% endblock %}
+

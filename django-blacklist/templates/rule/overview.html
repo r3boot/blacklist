@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load pagination_tags %}
+{% load ipcalc_tags %}
+{% load setvar_tags %}
+
+{% block content %}
+<table class="table">
+<thead class="header">
+{% for column in rule_table.columns %}
+<th>
+{% if column.sortable %}
+<a href="?sort={{column.name_toggled}}">{{column}}</a>
+{% if column.is_ordered_reverse %}^{% else %}v{% endif %}
+{% else %}
+{{column}}
+{% endif %}
+</th>
+{% endfor %}
+</thead>
+<tbody>
+{% with rule_table.rows as rows %}
+{% autopaginate rows %}
+{% for row in rows %}
+<tr class="{% cycle "even" "odd" %}">
+{% for value in row %}
+<td>{{value}}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+{% paginate %}
+{% endwith %}
+</tbody>
+</table>
+<p/><input type="button" value="add new" onclick="location.href='{% url blacklist.views.rule.add %}'" />
+<input type="submit" value="delete" />
+
+{% endblock %}
+

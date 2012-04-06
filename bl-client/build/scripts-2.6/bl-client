@@ -1,0 +1,103 @@
+#!/usr/local/bin/python
+
+cfgfile = "/etc/bl-client.conf"
+
+import ConfigParser
+from Crypto.Cipher import AES
+import base64
+import cPickle
+import datetime
+import os.path
+import os
+import random
+import socket
+import sys
+import time
+import urllib2
+import zmq
+
+class Client:
+	_blocksize = 32
+	_padding = "{"
+	_hostname = socket.gethostname()
+
+	def __init__(self, cfg):
+		self._cfg = cfg
+		self._cipher = AES.new(self._pad(cfg["psk"]))
+		if "." in self._hostname:
+			self._hostname = self._hostname.split(".")[0]
+
+		self.context = zmq.Context()
+		self.api = self.context.socket(zmq.PUSH)
+		self.api.bind(cfg["broker"])
+
+	def _pad(self, s):
+		return s + (self._blocksize - len(s) % self._blocksize) * self._padding
+
+	def _encrypt(self, data):
+		return base64.urlsafe_b64encode(self._cipher.encrypt(self._pad(cPickle.dumps(data))))
+
+	def _decrypt(self, data):
+		return cPickle.loads(self._cipher.decrypt(base64.urlsafe_b64decode(data.encode("utf-8")).rstrip(self._padding)))
+
+	def _submit(self, data):
+		data["username"] = self._cfg["username"]
+		data["password"] = self._cfg["password"]
+		data["random"] = random.random()*time.mktime(datetime.datetime.timetuple(datetime.datetime.now()))
+		enc = self._encrypt(data)
+
+		self.api.send(data)
+		"""
+		url = "%s/%s" % (self._cfg["url"], enc)
+		print url
+		try:
+			response = urllib2.urlopen(url).readlines()[0]
+			print self._decrypt(response)
+		except urllib2.HTTPError:
+			print "failed to contact blacklist server"
+		"""
+
+	def add(self, ip, sensor, reason):
+		data = {
+			"action":		"add",
+			"ip":			ip,
+			"sensor":		sensor,
+			"sensor_host":	self._hostname,
+			"reason":		reason,
+		}
+		self._submit(data)
+
+def get_config(cfgfile):
+	if not os.path.exists(cfgfile):
+		print "%s does not exist, exiting ..."
+		sys.exit(1)
+	cfg = {}
+	cfgparser = ConfigParser.ConfigParser()
+	cfgparser.read(cfgfile)
+	for option in cfgparser.options("config"):
+		cfg[option] = cfgparser.get("config", option)
+	return cfg
+
+def help():
+	print "Usage: %s (command) (options)" % (os.path.basename(sys.argv[0]))
+	print "\nAdd ip address to the blacklist"
+	print "* add <ipaddr> <sensor> <reason>"
+	print ""
+	sys.exit(1)
+
+if __name__ == "__main__":
+	commands = {
+		"add": 4,
+	}
+	if len(sys.argv) < 3: help()
+	if not sys.argv[1] in commands.keys(): help()
+	if len(sys.argv) <= commands[sys.argv[1]]: help()
+
+	config = get_config(cfgfile)
+	client = Client(config)
+
+	if sys.argv[1] == "add":
+		ip = sys.argv[2]
+		sensor = sys.argv[3]
+		reason = " ".join(sys.argv[4:])
+		client.add(ip, sensor, reason)

@@ -1,0 +1,64 @@
+#!/usr/local/bin/python
+
+cfgfile = "/etc/bl-broker.conf"
+
+import ConfigParser
+import os
+import sys
+import threading
+import zmq
+
+sys.path.append("/www/blacklist/app")
+os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
+
+from blacklist.common.api			import API
+from blacklist.common.config		import Config
+from blacklist.common.encryption	import Encryption
+
+class Broker(threading.Thread):
+	def __init__(self, cfg):
+		self.cfg = cfg
+		threading.Thread.__init__(self)
+		self.api = API()
+		self.config = Config()
+		self.encryption = Encryption(self.config["blacklist.api.psk"])
+
+		self.context = zmq.Context()
+		self.request = self.context.socket(zmq.REP)
+		self.request.bind(cfg["requests"])
+
+		self.publisher = self.context.socket(zmq.PUB)
+		self.publisher.bind(cfg["publisher"])
+
+		self.poller = zmq.Poller()
+		self.poller.register(self.request, zmq.POLLIN)
+
+		self.stop = False
+
+	def run(self):
+		while not self.stop:
+			socks = dict(self.poller.poll())
+
+			if self.request in socks and socks[self.request] == zmq.POLLIN:
+				message = self.request.recv()
+				print "[request]: %s" % (message)
+				self.request.send("ok")
+
+def get_config(cfgfile):
+	if not os.path.exists(cfgfile):
+		print "%s does not exist, exiting ..." % (cfgfile)
+		sys.exit(1)
+	cfg = {}
+	cfgparser = ConfigParser.ConfigParser()
+	cfgparser.read(cfgfile)
+	for option in cfgparser.options("config"):
+		cfg[option] = cfgparser.get("config", option)
+	return cfg
+
+if __name__ == "__main__":
+	config = get_config(cfgfile)
+	broker = Broker(config)
+	try:
+		broker.start()
+	except KeyboardInterrupt:
+		broker.stop = True
