@@ -1,6 +1,6 @@
 
 from __future__     import with_statement
-from fabric.api     import local, run, cd, settings
+from fabric.api     import local, run, cd, settings, put
 
 import os
 
@@ -10,6 +10,8 @@ devel_host = 'blacklist-dev'
 devel_user = 'root'
 
 templated_scripts = [
+    'bl-broker/bin/bl-broker',
+    'bl-syslog/conf/bl-syslog.conf',
     'django-blacklist/settings.py',
     'django-blacklist/scripts/blacklist-launcher.sh',
     'django-blacklist/scripts/registry-mgmt/import_registry_data.py',
@@ -30,6 +32,9 @@ template_tags = [
     'CACHE_PORT',
     'DJANGO_ROOT',
     'DJANGO_SECRET',
+    'REPORTER_USERNAME',
+    'REPORTER_PASSWORD',
+    'REPORTER_PSK',
 ]
 
 ## Installation related
@@ -41,6 +46,9 @@ def sync(remote=devel_host, remote_user=devel_user):
 
 def prepare_environment(remote=devel_host, remote_user=devel_user):
     with settings(host_string=remote, user=remote_user):
+        run('id blacklist >/dev/null 2>&1 || ' \
+            'useradd -r -s /usr/sbin/nologin blacklist')
+        run('install -d -o root -g root -m 0555 /var/empty')
         run('install -d -o root -g www-data -m 0770 %s' % defaults.LOG_DIR)
 
 def prepare_scripts(remote=devel_host, remote_user=devel_user):
@@ -79,6 +87,33 @@ def prepare_database(remote=devel_host, remote_user=devel_user):
             run('python manage.py syncdb --noinput')
             run('python manage.py migrate')
 
+def prepare_broker(remote=devel_host, remote_user=devel_user):
+    with settings(host_string=remote, user=remote_user):
+        with cd(defaults.BROKER_ROOT):
+            run('python setup.py install')
+        put('bl-broker/conf/bl-broker.supervisor.conf', \
+            '/etc/supervisor/conf.d/bl-broker.conf')
+        run('supervisorctl reread')
+        run('supervisorctl add bl-broker')
+
+def prepare_syslog(remote=devel_host, remote_user=devel_user):
+    with settings(host_string=remote, user=remote_user):
+        with cd(defaults.SYSLOG_ROOT):
+            run('python setup.py install')
+        put('bl-syslog/conf/bl-syslog.supervisor.conf', \
+            '/etc/supervisor/conf.d/bl-syslog.conf')
+        run('supervisorctl reread')
+        run('supervisorctl add bl-syslog')
+
+def prepare_bgp(remote=devel_host, remote_user=devel_user):
+    with settings(host_string=remote, user=remote_user):
+        with cd(defaults.BGP_ROOT):
+            run('python setup.py install')
+        put('bl-bgp/conf/bl-bgp.supervisor.conf', \
+            '/etc/supervisor/conf.d/bl-bgp.conf')
+        run('supervisorctl reread')
+        run('supervisorctl add bl-bgp')
+
 def import_registry_data(remote=devel_host, remote_user=devel_user):
     with settings(host_string=remote, user=remote_user):
         with cd('%s/scripts/registry-mgmt' % defaults.DJANGO_ROOT):
@@ -91,11 +126,21 @@ def test_django_blacklist(remote=devel_host, remote_user=devel_user):
             run('./django-blacklist/scripts/blacklist-launcher.sh start')
             run('./django-blacklist/scripts/blacklist-launcher.sh stop')
 
+def run_django_devserver(remote=devel_host, remote_user=devel_user):           
+    with settings(host_string=remote, user=remote_user):
+        with cd(defaults.DJANGO_ROOT):
+            run('python manage.py runserver 192.168.100.10:8000 || true')
+
 ## Top-level functions
-def test(remote=devel_host, remote_user=devel_user):
+def deploy(remote=devel_host, remote_user=devel_user, rebuild_db=False):
     sync(remote, remote_user)
     prepare_environment(remote, remote_user)
     prepare_scripts(remote, remote_user)
-    prepare_database(remote, remote_user)
-    import_registry_data(remote, remote_user)
+    if rebuild_db:
+        prepare_database(remote, remote_user)
+        import_registry_data(remote, remote_user)
+    #prepare_broker(remote, remote_user)
+    #prepare_syslog(remote, remote_user)
+    prepare_bgp(remote, remote_user)
     # test_django_blacklist(remote, remote_user)
+    # run_django_devserver(remote, remote_user)

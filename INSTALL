@@ -3,7 +3,7 @@ Notes, for now
 
 (development host)
 apt-get -t testing install libzmq1 libzmq-dev bird bird6 rsync build-essential nginx
-apt-get install python-setuptools python-dev python-django python-psycopg2 postgresql postgresql-client python-django-south python-django-pagination python-memcache python-flup
+apt-get install python-setuptools python-dev python-django python-psycopg2 postgresql postgresql-client python-django-south python-django-pagination python-memcache python-flup python-crypto supervisor python-jinja2 django-tables
 
 easy_install pyzmq
 easy_install django-cache-machine

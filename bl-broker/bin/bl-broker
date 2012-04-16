@@ -11,7 +11,7 @@ import time
 import threading
 import zmq
 
-sys.path.append("/www/blacklist/app")
+sys.path.append("%DJANGO_ROOT%")
 os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
 
 from django.db						import reset_queries

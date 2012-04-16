@@ -7,6 +7,10 @@ LOG_DIR='/var/log/blacklist'
 HTTP_USER='www-data'
 HTTP_HOST='www-data'
 
+REPORTER_USERNAME='admin'
+REPORTER_PASSWORD='blacklist'
+REPORTER_PSK='blacklist'
+
 DB_SERVER_USER='postgres'
 DB_SERVER_GROUP='postgres'
 DB_HOST='localhost'
@@ -19,3 +23,7 @@ CACHE_PORT='11211'
 
 DJANGO_ROOT='%s/blacklist/django-blacklist' % BASE_DIR
 DJANGO_SECRET=hashlib.sha512(str(random.random())).hexdigest()
+
+BROKER_ROOT='%s/blacklist/bl-broker' % BASE_DIR
+SYSLOG_ROOT='%s/blacklist/bl-syslog' % BASE_DIR
+BGP_ROOT='%s/blacklist/bl-bgp' % BASE_DIR
