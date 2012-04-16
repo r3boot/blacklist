@@ -13,6 +13,7 @@ templated_scripts = [
     'bl-broker/bin/bl-broker',
     'bl-syslog/conf/bl-syslog.conf',
     'django-blacklist/settings.py',
+    'django-blacklist/scripts/config-cli.py',
     'django-blacklist/scripts/blacklist-launcher.sh',
     'django-blacklist/scripts/registry-mgmt/import_registry_data.py',
 ]
@@ -114,6 +115,18 @@ def prepare_bgp(remote=devel_host, remote_user=devel_user):
         run('supervisorctl reread')
         run('supervisorctl add bl-bgp')
 
+def prepare_django_config(remote=devel_host, remote_user=devel_user):
+    with settings(host_string=remote, user=remote_user):
+        config_cli = '%s/scripts/config-cli.py' % defaults.DJANGO_ROOT
+        run('%s set blacklist.country.pages_per_view %s' % \
+            (config_cli, defaults.DJANGO_PAGES_PER_VIEW))
+        run('%s set blacklist.keystore.psk %s' % \
+            (config_cli, defaults.DJANGO_KEYSTORE_PSK))
+        run('%s set blacklist.multiplier %s' % \
+            (config_cli, defaults.DJANGO_MULTIPLIER))
+        run('%s set blacklist.api.psk %s' % (config_cli, defaults.REPORTER_PSK))
+        run('%s set blacklist.broker %s' % (config_cli, defaults.BROKER_URL))
+
 def import_registry_data(remote=devel_host, remote_user=devel_user):
     with settings(host_string=remote, user=remote_user):
         with cd('%s/scripts/registry-mgmt' % defaults.DJANGO_ROOT):
@@ -141,6 +154,7 @@ def deploy(remote=devel_host, remote_user=devel_user, rebuild_db=False):
         import_registry_data(remote, remote_user)
     #prepare_broker(remote, remote_user)
     #prepare_syslog(remote, remote_user)
-    prepare_bgp(remote, remote_user)
+    #prepare_bgp(remote, remote_user)
+    prepare_django_config(remote, remote_user)
     # test_django_blacklist(remote, remote_user)
     # run_django_devserver(remote, remote_user)

@@ -4,7 +4,7 @@ import sys
 import os.path
 import os
 
-sys.path.append("/www/blacklist/app")
+sys.path.append("%DJANGO_ROOT%")
 os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
 
 from blacklist.common.config	import Config
